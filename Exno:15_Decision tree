@@ -1,0 +1,111 @@
+import math
+from collections import Counter
+
+# Calculate entropy of a dataset
+def entropy(data):
+    label_count = Counter([row[-1] for row in data])
+    total = len(data)
+    ent = 0
+    for count in label_count.values():
+        p = count / total
+        ent -= p * math.log2(p)
+    return ent
+
+# Split dataset based on an attribute and its value
+def split_dataset(data, feature_index, value):
+    left = [row for row in data if row[feature_index] == value]
+    right = [row for row in data if row[feature_index] != value]
+    return left, right
+
+# Calculate information gain after a split
+def info_gain(data, left, right):
+    p_left = len(left) / len(data)
+    p_right = len(right) / len(data)
+    gain = entropy(data) - (p_left * entropy(left) + p_right * entropy(right))
+    return gain
+
+# Find the best feature to split on
+def best_split(data):
+    best_gain = 0
+    best_feature = None
+    best_value = None
+
+    num_features = len(data[0]) - 1  # Last is label
+    for feature_index in range(num_features):
+        values = set(row[feature_index] for row in data)
+        for val in values:
+            left, right = split_dataset(data, feature_index, val)
+            if not left or not right:
+                continue
+            gain = info_gain(data, left, right)
+            if gain > best_gain:
+                best_gain = gain
+                best_feature = feature_index
+                best_value = val
+    return best_feature, best_value, best_gain
+
+# Build decision tree recursively
+def build_tree(data):
+    labels = [row[-1] for row in data]
+    if len(set(labels)) == 1:
+        return labels[0]  # Leaf node with single class
+    if len(data[0]) == 1:
+        # No features left, return majority label
+        return Counter(labels).most_common(1)[0][0]
+
+    feature, value, gain = best_split(data)
+    if gain == 0:
+        return Counter(labels).most_common(1)[0][0]
+
+    left_subset, right_subset = split_dataset(data, feature, value)
+    left_branch = build_tree(left_subset)
+    right_branch = build_tree(right_subset)
+
+    return {'feature': feature, 'value': value, 'left': left_branch, 'right': right_branch}
+
+# Predict with the trained tree for one sample
+def predict(tree, sample):
+    if not isinstance(tree, dict):
+        return tree  # Leaf node reached
+    feature_val = sample[tree['feature']]
+    if feature_val == tree['value']:
+        return predict(tree['left'], sample)
+    else:
+        return predict(tree['right'], sample)
+
+# Example usage
+if __name__ == "__main__":
+    # Example dataset: [feature1, feature2, ..., label]
+    dataset = [
+        ['Sunny', 'Hot', 'High', 'Weak', 'No'],
+        ['Sunny', 'Hot', 'High', 'Strong', 'No'],
+        ['Overcast', 'Hot', 'High', 'Weak', 'Yes'],
+        ['Rain', 'Mild', 'High', 'Weak', 'Yes'],
+        ['Rain', 'Cool', 'Normal', 'Weak', 'Yes'],
+        ['Rain', 'Cool', 'Normal', 'Strong', 'No'],
+        ['Overcast', 'Cool', 'Normal', 'Strong', 'Yes'],
+        ['Sunny', 'Mild', 'High', 'Weak', 'No'],
+        ['Sunny', 'Cool', 'Normal', 'Weak', 'Yes'],
+        ['Rain', 'Mild', 'Normal', 'Weak', 'Yes'],
+        ['Sunny', 'Mild', 'Normal', 'Strong', 'Yes'],
+        ['Overcast', 'Mild', 'High', 'Strong', 'Yes'],
+        ['Overcast', 'Hot', 'Normal', 'Weak', 'Yes'],
+        ['Rain', 'Mild', 'High', 'Strong', 'No'],
+    ]
+
+    # Build tree
+    tree = build_tree(dataset)
+    print("Trained Decision Tree:")
+    print(tree)
+
+    # Predict test samples
+    test_samples = [
+        ['Sunny', 'Cool', 'High', 'Strong'],
+        ['Rain', 'Mild', 'Normal', 'Weak'],
+        ['Overcast', 'Hot', 'High', 'Strong'],
+    ]
+
+    print("\nPredictions:")
+    for sample in test_samples:
+        pred = predict(tree, sample)
+        print(f"Sample: {sample} => Prediction: {pred}")
